@@ -8,57 +8,13 @@
 
 #define FPS 30
 
-template <typename T>
-struct Grid {
-    T *values;
-    int nx, ny;
-
-    Grid(int nx, int ny): nx(nx), ny(ny){
-        values = new T[nx*ny];
-    }
-
-    Grid(const Grid&) = delete;
-    Grid& operator = (const Grid&) = delete;
-
-    ~Grid(){
-        delete[] values;
-    }
-
-    void swap(Grid &other){
-        std::swap(values, other.values);
-        std::swap(nx, other.nx);
-        std::swap(ny, other.ny);
-    }
-
-    const T* data() const {
-        return values;
-    }
-
-    int idx(int x, int y) const {
-        //x = clamp(x, 0, nx - 1);
-        //y = clamp(y, 0, ny - 1);
-
-        // wrap around
-        x = (x + nx) % nx;
-        y = (y + ny) % ny;
-
-        return x + y*nx;
-    }
-
-    T& operator () (int x, int y){
-        return values[idx(x, y)];
-    }
-
-    const T& operator () (int x, int y) const {
-        return values[idx(x, y)];
-    }
-};
-
 
 class Rendering
 {
 	SDL_Window* window;
 	SDL_Renderer* renderer;
+	SDL_Texture* texture;
+	const uint32_t pixelFormat=SDL_PIXELFORMAT_RGBA8888;
 	
 	int wWidth=800;
 	int wHeight=600;
@@ -83,7 +39,9 @@ class Rendering
 			SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
 			wWidth, wHeight,
 			SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE);
-		renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_SOFTWARE);
+		renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
+
+		texture = SDL_CreateTexture(renderer, pixelFormat, SDL_TEXTUREACCESS_STREAMING, wWidth, wHeight);
 
 		points = std::vector<vec3f>(0);
 	}
@@ -132,6 +90,8 @@ class Rendering
 				wWidth = event.window.data1;
 				wHeight = event.window.data2;
 				camera.resize(wHeight, wWidth);
+				SDL_DestroyTexture(texture);
+				texture = SDL_CreateTexture(renderer, pixelFormat, SDL_TEXTUREACCESS_STREAMING, wWidth, wHeight);
 				break;
 			}
 			break;
@@ -191,18 +151,49 @@ class Rendering
              	}
 	}
 
+	uint32_t rgba32(uint32_t r, uint32_t g, uint32_t b, uint32_t a){
+		r = clamp(r, 0u, 255u);
+		g = clamp(g, 0u, 255u);
+		b = clamp(b, 0u, 255u);
+		a = clamp(a, 0u, 255u);
+		return (a << 24) | (b << 16) | (g << 8) | r;
+	}
+
 	void print(void)
 	{
 		camera.pos += d;
 		camera.actualise();
-		SDL_SetRenderDrawColor(renderer, 255, 255, 255, 0);
+
+		
+		int pitch;
+		uint8_t *pixels;
+		SDL_LockTexture(texture, NULL, (void **)&pixels, &pitch);
+
+#define pixel(x,y) ((uint32_t*)(pixels+y*pitch))[x]
+
+		for(uint8_t *p=pixels;p<pixels+wHeight*pitch;*(p++)=0);
+
+
 		for(auto p=points.begin(); p != points.end(); ++p){
                 	coord c = camera.projection(*p);
-                	SDL_RenderDrawPoint(renderer, c.x, c.y);
+			
+			if(0 <= c.x and c.x < wWidth and 0 <= c.y and c.y < wHeight)
+			pixel(c.x, c.y) = rgba32(255, 255, 255, 255);
         	}
-		SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0);
+
+		SDL_UnlockTexture(texture);
+		SDL_RenderCopy(renderer, texture, NULL, NULL);
 		SDL_RenderPresent(renderer);
 		SDL_RenderClear(renderer);
+	}
+
+	void destroy(void)
+	{
+		SDL_DestroyTexture(texture);
+		SDL_DestroyRenderer(renderer);
+		SDL_DestroyWindow(window);
+
+		SDL_Quit();
 	}
 };
 
@@ -233,6 +224,6 @@ int main(int argc, char* argv[])
 		else SDL_Log("On a sauté la pause");
 		time = SDL_GetTicks();
 	}
-	SDL_Quit();
+	renderer.destroy();
 	return 0;
 }
