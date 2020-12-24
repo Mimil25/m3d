@@ -10,6 +10,8 @@
 #define FPS 20
 
 //#define CVEW
+//#define TRIANGLES
+#define POINTS
 
 
 class Rendering
@@ -166,16 +168,7 @@ handleKey:
 		uint8_t *pixels;
 		SDL_LockTexture(texture, NULL, (void **)&pixels, &pitch);
 
-#define pixel(x,y) ((uint32_t*)(pixels+y*pitch))[x]
-
-		for(uint64_t *p=(uint64_t*)pixels;p<(uint64_t*)(pixels+wHeight*pitch);*(p++)=0);
-
-
-		for(auto p=shapes.points.begin(); p != shapes.points.end(); ++p){
-			coord c = camera.projection(p->p);
-			if(0 <= c.x and c.x < wWidth and 0 <= c.y and c.y < wHeight)
-				pixel(c.x, c.y) = -1;
-		}
+		camera.render((uint32_t*)pixels, shapes, 0x27);
 
 		SDL_UnlockTexture(texture);
 		SDL_RenderCopy(renderer, texture, NULL, NULL);
