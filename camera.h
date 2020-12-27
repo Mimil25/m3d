@@ -17,11 +17,6 @@ uint32_t rgba32(uint32_t r, uint32_t g, uint32_t b, uint32_t a){
 	return (a << 24) | (b << 16) | (g << 8) | r;
 }
 
-inline uint64_t melangeCouleur(const uint64_t a, const int64_t b){
-	const uint64_t masque=0x80808080;
-	return ((a<<1)&masque) + ((b<<1)&masque);
-}
-
 struct Point{
 	vec3f p;
 	vec2f p2;
@@ -31,6 +26,7 @@ struct Point{
 
 struct Triangle{
 	Point *a, *b, *c;
+	plan3f p;
 	uint32_t color;
 };
 
@@ -40,6 +36,10 @@ Triangle triangle(Point* a, Point* b, Point* c, const uint32_t color){
 	t.a = a;
 	t.b = b;
 	t.c = c;
+
+	t.p = (plan3f)plan3fp{a->p,
+			      b->p,
+			      c->p};
 
 	t.color = color;
 
@@ -154,6 +154,24 @@ class Camera {
 			}
 		}
 
+		inline void makeLineH(uint32_t* pixels, const int y, int x1, int x2, const Triangle& t){
+                        if(y < 0 or x2 < 0 or x1 >= W or y >= H)return;
+                        if(x1 < 0) x1=0;
+                        if(x2 >= W)x2=W-1;
+                        const uint32_t* end=pixels+W*y+x2;
+			vec3f v = pp.a + y*up + x1*side;
+			float dist;
+                        for(uint32_t* p=pixels+W*y+x1; p < end; ++p){
+				dist = length(intersection(t.p, (droite3f)droite3fp{pos, v})-pos);
+				if(dist < matriceD(x1, y)){
+					matriceD(x1, y) = dist;
+                                	*p = t.color;
+				}
+				v = pp.a + y*up + x1*side;
+				++x1;
+                        }
+                }
+
 		inline void setPixel(uint32_t* pixels, const int x, const int y, const uint32_t color){
 			if(x < 0 or x >= W or y < 0 or y >= H)return;
 			pixels[W*y + x] = color;
@@ -180,6 +198,9 @@ class Camera {
 				x = x1;
 				y = y1;
 
+				//if(x < 0){y = (y-H/2)*( (W/2) / (W/2-x)) + H/2; x=0;}
+				//if(y < 0){x = (x-W/2)*( (H/2) / (H/2-y)) + W/2; y=0;}
+
 				setPixel(pixels, x, y, color);
 
 				for (y = y1+1; y <= y2; ++y) {
@@ -188,7 +209,6 @@ class Camera {
 						d += aincr;
 					} else
 						d += bincr;
-
 					setPixel(pixels, x, y, color);
 				}
 
@@ -208,6 +228,9 @@ class Camera {
 				bincr = 2 * dy;
 				x = x1;
 				y = y1;
+				
+				//if(x < 0){y = (y-H/2)*( (W/2) / (W/2-x)) + H/2; x=0;}
+				//if(y < 0){x = (x-W/2)*( (H/2) / (H/2-y)) + W/2; y=0;}
 
 				setPixel(pixels, x, y, color);
 
@@ -217,7 +240,6 @@ class Camera {
 						d += aincr;
 					} else
 						d += bincr;
-
 					setPixel(pixels, x, y, color);
 				}
 			}
@@ -240,32 +262,49 @@ class Camera {
 
 			const float ab=(b.x-a.x)/(b.y-a.y),
 			      ac=(c.x-a.x)/(c.y-a.y),
-			      bc=(a.x-c.x)/(c.y-b.y);
+			      bc=(c.x-b.x)/(c.y-b.y);
 
-			int y;
+			int y = (int)a.y;
+			const int by = (int)b.y;
+			const int cy = (int)c.y;
 			float x1=a.x,x2=a.x;
+
+			if(y < 0){
+				if(by < 0){
+					x1 += ab*(by-y) + bc*(-by);
+					x2 += ac*(-y);
+				}else{
+					x1 += ab*(-y);
+					x2 += ac*(-y);
+				}
+				y = 0;
+			}
 
 			if(ab < ac){
 
-				for(y = (int)a.y; y < (int)b.y; ++y){
-					makeLineH(pixels, y, (int)x1, (int)x2, t.color);
+				for(; y < by; ++y){
+					if(y >= H)return;
+					makeLineH(pixels, y, (int)x1, (int)x2, t);
 					x1 += ab;
 					x2 += ac;
 				}
-				for(;y < (int)c.y; ++y){
-					makeLineH(pixels, y, (int)x1, (int)x2, t.color);
+				for(;y < cy; ++y){
+					if(y >= H)return;
+					makeLineH(pixels, y, (int)x1, (int)x2, t);
 					x1 += bc;
 					x2 += ac;
 				}
 
 			} else {
 
-				for(y = (int)a.y; y < (int)b.y; ++y){
+				for(; y < by; ++y){
+					if(y >= H)return;
 					makeLineH(pixels, y, (int)x2, (int)x1, t.color);
 					x1 += ab;
 					x2 += ac;
 				}
-				for(;y < (int)c.y; ++y){
+				for(;y < cy; ++y){
+					if(y >= H)return;
 					makeLineH(pixels, y, (int)x2, (int)x1, t.color);
 					x1 += bc;
 					x2 += ac;
