@@ -7,7 +7,7 @@
 
 #include "vec.h"
 
-#define MAX_DISTANCE 100000.0f
+#define MAX_DISTANCE 10000000000.0f
 
 uint32_t rgba32(uint32_t r, uint32_t g, uint32_t b, uint32_t a){
 	r = clamp(r, 0u, 255u);
@@ -160,9 +160,15 @@ class Camera {
                         if(x2 >= W)x2=W-1;
                         const uint32_t* end=pixels+W*y+x2;
 			vec3f v = pp.a + y*up + x1*side;
+			vec3f vdist;
 			float dist;
                         for(uint32_t* p=pixels+W*y+x1; p < end; ++p){
-				dist = length(intersection(t.p, (droite3f)droite3fp{pos, v})-pos);
+				vdist = intersection(t.p, (droite3f)droite3fp{pos, v})-pos;
+
+				//vec2f vtest=change_repere_vers_2d(pp, v);
+				//std::cout << vtest.x <<' '<< vtest.y << std::endl;
+				
+				dist = dot(vdist,vdist);
 				if(dist < matriceD(x1, y)){
 					matriceD(x1, y) = dist;
                                 	*p = t.color;
@@ -288,6 +294,7 @@ class Camera {
 					x1 += ab;
 					x2 += ac;
 				}
+				if(by >= 0)x1 = b.x;
 				for(;y < cy; ++y){
 					if(y >= H)return;
 					makeLineH(pixels, y, (int)x1, (int)x2, t);
@@ -303,6 +310,7 @@ class Camera {
 					x1 += ab;
 					x2 += ac;
 				}
+				if(by >= 0)x1 = b.x;
 				for(;y < cy; ++y){
 					if(y >= H)return;
 					makeLineH(pixels, y, (int)x2, (int)x1, t.color);

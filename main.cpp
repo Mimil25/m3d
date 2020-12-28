@@ -168,7 +168,7 @@ handleKey:
 		uint8_t *pixels;
 		SDL_LockTexture(texture, NULL, (void **)&pixels, &pitch);
 
-		camera.render((uint32_t*)pixels, shapes, 0x27);
+		camera.render((uint32_t*)pixels, shapes, 0x17);
 
 		SDL_UnlockTexture(texture);
 		SDL_RenderCopy(renderer, texture, NULL, NULL);
